@@ -205,7 +205,28 @@
 <script src="/js/api.js"></script>
 <script src="/js/toast.js"></script>
 <script src="/js/nav.js"></script>
+<script src="/js/chat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="/js/gestor.js"></script>
+<script>
+  // Chat Widget (Gestor)
+  const gestorChat = new ChatWidget({
+    endpoint: '/api/gestures/chat/gestor',
+    title: 'GestorFlota-Agent',
+    placeholder: 'Ej: "lista incidencias", "análisis de la línea 27"...'
+  });
+
+  // Suscripción SSE a alertas del gestureDaemon
+  const evtSource = new EventSource('/api/gestures/stream');
+  evtSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    if (data.type === 'double_five') {
+      Toast.error('🚨 ALERTA RECIBIDA: Gesto de emergencia (5 dedos) detectado en la flota.');
+      gestorChat.notify(); // Ilumina el chat si está cerrado
+    } else if (data.type.startsWith('prohibited:')) {
+      Toast.warning('⚠️ ALERTA: Objeto prohibido detectado (' + data.type.split(':')[1] + ')');
+    }
+  };
+</script>
 </body>
 </html>

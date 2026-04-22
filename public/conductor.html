@@ -100,6 +100,43 @@
         </div>
       </div>
 
+      <!-- Control de Gestos (gestureDaemon) -->
+      <div class="card animate-in" style="margin-bottom:1.5rem; background:linear-gradient(135deg,var(--secondary),#1a2a3a); border-color:var(--border); overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+          <div style="display:flex;align-items:center;gap:0.75rem">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2">
+              <path d="M15 12V6a3 3 0 00-6 0v10a3 3 0 006 0v-4z"/><path d="M12 21a9 9 0 01-9-9V9a3 3 0 016 0"/><path d="M21 12v-2a3 3 0 00-6 0"/>
+            </svg>
+            <div>
+              <h3 style="font-family:'Space Grotesk',sans-serif;font-size:0.95rem;font-weight:700;color:var(--fg)">Asistente de Gestos (IA)</h3>
+              <p style="font-size:0.75rem;color:var(--muted-fg)">Detección por cámara</p>
+            </div>
+          </div>
+          <!-- Toggle switch personalizado -->
+          <label class="switch" style="position:relative;display:inline-block;width:44px;height:24px">
+            <input type="checkbox" id="gesture-toggle" style="opacity:0;width:0;height:0">
+            <span class="slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:var(--muted);transition:.4s;border-radius:24px"></span>
+          </label>
+        </div>
+        <div style="font-size:0.8rem;color:var(--fg-2);line-height:1.4">
+          Levanta <b>5 dedos dos veces</b> rápidamente frente a la cámara web para reportar una emergencia automática sin soltar el volante.
+        </div>
+        <div id="gesture-status" style="margin-top:0.75rem;font-size:0.75rem;font-weight:600;color:var(--muted-fg);display:flex;align-items:center;gap:0.5rem">
+          <div style="width:8px;height:8px;border-radius:50%;background:currentColor"></div>
+          Desactivado
+        </div>
+
+        <!-- Contenedor del video feed (MediaPipe Web) -->
+        <div id="video-container" style="display:none; margin-top:1rem; border-radius:var(--radius); overflow:hidden; border:1px solid rgba(255,255,255,0.1); box-shadow:0 8px 32px rgba(0,0,0,0.3); position:relative">
+           <!-- El video real de la webcam está oculto, solo necesitamos el lienzo -->
+           <video id="video-feed" autoplay playsinline style="display:none;"></video>
+           <canvas id="canvas-feed" style="width:100%; display:block; aspect-ratio:16/9; background:#000"></canvas>
+           <div style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:4px; font-size:0.7rem; color:var(--success); display:flex; align-items:center; gap:4px; font-weight:600; backdrop-filter:blur(4px)">
+              <div style="width:6px;height:6px;border-radius:50%;background:var(--success);animation:pulse-dot 2s infinite"></div> REC / IA Activa (Local)
+           </div>
+        </div>
+      </div>
+
       <!-- Ruta asignada -->
       <div style="display:grid; grid-template-columns:1fr 300px; gap:1.25rem; align-items:start">
         <div class="card animate-in" style="animation-delay:0.15s">
@@ -143,6 +180,15 @@
 <script src="/js/api.js"></script>
 <script src="/js/toast.js"></script>
 <script src="/js/nav.js"></script>
+<script src="/js/chat.js"></script>
+
+<!-- MediaPipe JS (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<!-- Gestor de Visión Local -->
+<script src="/js/gesture-vision.js"></script>
+
 <script>
   requireRole(['conductor', 'gestor']);
   const user = getUser();
@@ -207,14 +253,59 @@
   });
 
   window.openIncidentForm = openIncidentForm;
-  window.closeIncidentForm = closeIncidentForm;
+  // Chat Widget (Conductor)
+  const conductorChat = new ChatWidget({
+    endpoint: '/api/gestures/chat/conductor',
+    title: 'TrafficDB-Agent (Línea ' + (user?.assigned_line || '27') + ')',
+    placeholder: 'Ej: "línea 27" o "todas"...'
+  });
 
-  // Actualizar hora
-  function updateClock() {
-    const now = new Date();
-    document.getElementById('next-stop-time').textContent = now.toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+  // Control de Gestos (Local Web)
+  const toggle = document.getElementById('gesture-toggle');
+  const statusEl = document.getElementById('gesture-status');
+  const videoContainer = document.getElementById('video-container');
+
+  function updateGestureStatus(isRunning) {
+    statusEl.innerHTML = isRunning 
+      ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--success)"></div><span style="color:var(--success)">Cámara activa</span>'
+      : '<div style="width:8px;height:8px;border-radius:50%;background:var(--muted-fg)"></div>Desactivado';
+    videoContainer.style.display = isRunning ? 'block' : 'none';
   }
-  updateClock(); setInterval(updateClock, 1000);
+
+  toggle.addEventListener('change', async (e) => {
+    try {
+      if (e.target.checked) {
+        await startGestureDetection();
+        updateGestureStatus(true);
+        Toast.success('Cámara activada. Detección local iniciada.');
+      } else {
+        stopGestureDetection();
+        updateGestureStatus(false);
+        Toast.success('Cámara desactivada.');
+      }
+    } catch (err) {
+      e.target.checked = !e.target.checked; // Revertir
+      Toast.error('Error al iniciar la cámara: ' + err.message);
+    }
+  });
+
+  // Feedback SSE para el conductor (Confirmación visual de envío)
+  const evtSource = new EventSource('/api/gestures/stream');
+  let lastNotifiedTime = 0;
+  evtSource.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+    const now = Date.now();
+    if (now - lastNotifiedTime < 3000) return; // Evitar spam
+    
+    if (data.type === 'double_five') {
+      Toast.success('✅ Gesto reconocido: Alerta de emergencia enviada al centro de control.');
+      lastNotifiedTime = now;
+    } else if (data.type && data.type.startsWith('prohibited:')) {
+      Toast.warning('⚠️ IA detecta objeto prohibido: ' + data.type.split(':')[1]);
+      lastNotifiedTime = now;
+    }
+  };
+
 </script>
 </body>
 </html>

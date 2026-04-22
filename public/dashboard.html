@@ -120,6 +120,7 @@
 <script src="/js/api.js"></script>
 <script src="/js/toast.js"></script>
 <script src="/js/nav.js"></script>
+<script src="/js/chat.js"></script>
 <script>
   requireAuth();
   const user = getUser();
@@ -195,6 +196,18 @@
 
   loadBuses();
   setInterval(loadBuses, 30000); // Actualizar cada 30s
+
+  // Chat Widget (Pasajero)
+  const pasajeroChat = new ChatWidget({
+    endpoint: '/api/gestures/chat/pasajero',
+    title: 'BusMAD Agent',
+    placeholder: 'Pregunta sobre rutas, líneas, horarios...',
+    demoResponses: [
+      'Para ir a Plaza Castilla puedes tomar la línea 27 desde Atocha.',
+      'La línea 82 tiene una frecuencia aproximada de 10 minutos.',
+      'El servicio nocturno (Búhos) comienza a las 23:30. ¿Te busco el horario del N1?'
+    ]
+  });
 </script>
 </body>
 </html>

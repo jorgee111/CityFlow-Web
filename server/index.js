@@ -11,6 +11,8 @@ const busesRoutes      = require('./routes/buses');
 const incidentsRoutes  = require('./routes/incidents');
 const suggestionsRoutes = require('./routes/suggestions');
 const usersRoutes      = require('./routes/users');
+const gesturesRoutes   = require('./routes/gestures');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +31,8 @@ app.use('/api/buses',       busesRoutes);
 app.use('/api/incidents',   incidentsRoutes);
 app.use('/api/suggestions', suggestionsRoutes);
 app.use('/api/users',       usersRoutes);
+app.use('/api/gestures',    gesturesRoutes);
+
 
 // ─── Health check para Azure App Service ─────────────────
 app.get('/api/health', (req, res) => {
