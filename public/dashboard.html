@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityFlow — Dashboard</title>
+  <meta name="description" content="CityFlow Dashboard: Estado en tiempo real del transporte público de Madrid. Próximos autobuses, ocupación y tráfico.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<button class="btn-menu-toggle" id="menu-toggle">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main-content">
+    <div class="page-header">
+      <div style="display:flex; align-items:center; gap:0.75rem">
+        <div>
+          <h1 class="page-title" id="page-title">Dashboard</h1>
+          <p class="page-subtitle" id="page-subtitle">Madrid · Tiempo real</p>
+        </div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:0.5rem">
+          <div class="live-dot"></div>
+          <span style="font-size:0.78rem; color:var(--success); font-weight:500">Sistema operativo</span>
+          <span style="font-size:0.75rem; color:var(--muted-fg); margin-left:0.5rem" id="last-update">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+      <!-- KPI Stats -->
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card animate-in">
+          <div class="stat-icon" style="background:var(--primary-glow)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+              <rect x="1" y="3" width="22" height="16" rx="2"/><path d="M1 9h22M7 3v16M17 3v16"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/>
+            </svg>
+          </div>
+          <div class="stat-value" id="stat-buses">—</div>
+          <div class="stat-label">Autobuses activos</div>
+        </div>
+        <div class="stat-card animate-in" style="animation-delay:0.08s">
+          <div class="stat-icon" style="background:var(--info-bg)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+          </div>
+          <div class="stat-value">3.2K</div>
+          <div class="stat-label">Pasajeros/hora</div>
+        </div>
+        <div class="stat-card animate-in" style="animation-delay:0.16s">
+          <div class="stat-icon" style="background:var(--success-bg)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div class="stat-value">8 min</div>
+          <div class="stat-label">ETA promedio</div>
+        </div>
+        <div class="stat-card animate-in" style="animation-delay:0.24s">
+          <div class="stat-icon" style="background:var(--warning-bg)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+            </svg>
+          </div>
+          <div class="stat-value" id="stat-traffic">Moderado</div>
+          <div class="stat-label">Tráfico A6</div>
+        </div>
+      </div>
+
+      <!-- Próximos autobuses -->
+      <div style="margin-top:1.75rem">
+        <div class="section-header">
+          <h2 class="section-title">🚌 Próximos autobuses</h2>
+          <a href="/lineas.html" class="btn btn-ghost btn-sm">
+            Ver todos
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+        </div>
+        <div class="space-y-3" id="buses-list">
+          <div class="loading-overlay"><div class="spinner"></div><span>Cargando autobuses...</span></div>
+        </div>
+      </div>
+
+      <!-- Predicción de tráfico -->
+      <div style="margin-top:1.75rem">
+        <h2 class="section-title mb-3">📊 Ocupación por línea</h2>
+        <div class="card" id="occupancy-chart">
+          <div style="display:flex; flex-direction:column; gap:0.875rem">
+            <!-- Se rellena dinámicamente -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Banner tráfico -->
+      <a href="/trafico.html" style="display:block; margin-top:1.75rem; text-decoration:none">
+        <div class="card animate-in" style="background:linear-gradient(135deg,hsl(200,70%,15%),hsl(210,60%,12%)); border-color:hsl(200,50%,25%); cursor:pointer; transition:all 0.2s">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem">
+            <div>
+              <p style="font-size:0.75rem; color:var(--info); font-weight:600; margin-bottom:0.25rem">PREDICCIÓN IA · Tráfico</p>
+              <h3 style="font-family:'Space Grotesk',sans-serif; font-size:1.1rem; font-weight:700; color:var(--fg)">Tráfico A6</h3>
+              <p style="font-size:0.82rem; color:var(--fg-2); margin-top:0.25rem">Congestión prevista a las 18:00 — planifica tu ruta alternativa</p>
+            </div>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.5" style="flex-shrink:0;opacity:0.7">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+            </svg>
+          </div>
+        </div>
+      </a>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+  requireAuth();
+  const user = getUser();
+
+  // Personalizar título según rol
+  if (user) {
+    if (user.role === 'conductor') window.location.href = '/conductor.html';
+    if (user.role === 'gestor')    window.location.href = '/gestor.html';
+    document.getElementById('page-title').textContent = `Bienvenido, ${user.display_name.split(' ')[0]}`;
+  }
+
+  function updateTime() {
+    document.getElementById('last-update').textContent = 'Actualizado ' + new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  function getOccupancyLabel(level) { return { low: 'Bajo', medium: 'Medio', high: 'Alto' }[level] || 'Bajo'; }
+  function getOccupancyClass(level) { return { low: 'low', medium: 'medium', high: 'high' }[level] || 'low'; }
+
+  async function loadBuses() {
+    try {
+      const [buses, stats] = await Promise.all([
+        api.get('/buses'),
+        api.get('/buses/stats')
+      ]);
+
+      // KPIs
+      document.getElementById('stat-buses').textContent = stats.active_buses || buses.length;
+
+      // Lista próximos (primeros 5)
+      const list = document.getElementById('buses-list');
+      const first5 = buses.slice(0, 5);
+      list.innerHTML = first5.map((bus, i) => `
+        <div class="line-card animate-in" style="animation-delay:${i * 0.07}s">
+          <div class="line-badge" style="background:${bus.line_color || 'var(--primary)'}">
+            ${bus.line}
+          </div>
+          <div class="line-info">
+            <div class="line-dest">${bus.destination}</div>
+            <div class="line-route" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem">
+              <span>${bus.eta_minutes} min</span>
+              <span class="badge badge-${bus.occupancy_level === 'low' ? 'success' : bus.occupancy_level === 'medium' ? 'warning' : 'danger'}" style="font-size:0.65rem">
+                ${getOccupancyLabel(bus.occupancy_level)}
+              </span>
+            </div>
+          </div>
+          <div>
+            <div class="line-eta">${bus.eta_minutes}'</div>
+            <div class="line-eta-label">min</div>
+          </div>
+        </div>
+      `).join('');
+
+      // Gráfico ocupación
+      const chart = document.getElementById('occupancy-chart').querySelector('div');
+      chart.innerHTML = buses.map(bus => `
+        <div style="display:flex; align-items:center; gap:0.75rem">
+          <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:0.85rem; color:var(--fg); width:40px; flex-shrink:0">${bus.line}</span>
+          <div style="flex:1">
+            <div class="progress-bar">
+              <div class="progress-fill occ-${getOccupancyClass(bus.occupancy_level)}" style="width:${bus.occupancy_pct}%"></div>
+            </div>
+          </div>
+          <span style="font-size:0.78rem; color:var(--muted-fg); width:36px; text-align:right">${bus.occupancy_pct}%</span>
+        </div>
+      `).join('');
+
+      updateTime();
+    } catch (err) {
+      document.getElementById('buses-list').innerHTML = `<p style="color:var(--muted-fg);text-align:center;padding:2rem">No se pudieron cargar los datos</p>`;
+      Toast.error(err.message);
+    }
+  }
+
+  loadBuses();
+  setInterval(loadBuses, 30000); // Actualizar cada 30s
+</script>
+</body>
+</html>

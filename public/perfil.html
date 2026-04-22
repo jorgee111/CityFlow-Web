@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityFlow — Mi perfil</title>
+  <meta name="description" content="Gestiona tu perfil de usuario en CityFlow.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<button class="btn-menu-toggle" id="menu-toggle">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <h1 class="page-title">Mi perfil</h1>
+      <p class="page-subtitle">Gestiona tu información personal</p>
+    </div>
+    <div class="page-content">
+      <div style="max-width:560px; margin:0 auto">
+        <!-- Avatar y nombre -->
+        <div class="card animate-in" style="text-align:center; margin-bottom:1.5rem">
+          <div id="profile-avatar" style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:2rem;color:white;margin:0 auto 1rem">?</div>
+          <h2 style="font-family:'Space Grotesk',sans-serif;font-size:1.25rem;font-weight:700;color:var(--fg)" id="profile-name">Cargando...</h2>
+          <p style="font-size:0.85rem;color:var(--muted-fg);margin-top:0.25rem" id="profile-email">—</p>
+          <span class="badge badge-primary" id="profile-role" style="margin-top:0.5rem">—</span>
+        </div>
+
+        <!-- Formulario edición -->
+        <div class="card animate-in" style="animation-delay:0.1s">
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.95rem;color:var(--fg);margin-bottom:1.25rem">Editar información</h3>
+          <div style="display:flex; flex-direction:column; gap:1rem">
+            <div class="form-group">
+              <label class="form-label" for="edit-name">Nombre completo</label>
+              <input class="form-input" type="text" id="edit-name" placeholder="Tu nombre">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-phone">Teléfono</label>
+              <input class="form-input" type="tel" id="edit-phone" placeholder="+34 600 000 000">
+            </div>
+            <button class="btn btn-primary" id="btn-save">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Guardar cambios
+            </button>
+          </div>
+        </div>
+
+        <!-- Zona de peligro -->
+        <div class="card animate-in" style="animation-delay:0.2s; margin-top:1.5rem; border-color:var(--danger-bg)">
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.95rem;color:var(--danger);margin-bottom:0.75rem">Cerrar sesión</h3>
+          <p style="font-size:0.85rem;color:var(--muted-fg);margin-bottom:1rem">Al cerrar sesión tendrás que volver a introducir tus credenciales.</p>
+          <button class="btn btn-danger" onclick="handleLogout()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+  requireAuth();
+  const roleLabels = { pasajero: 'Pasajero', conductor: 'Conductor', gestor: 'Gestor' };
+
+  async function loadProfile() {
+    try {
+      const user = await api.get('/auth/me');
+      document.getElementById('profile-avatar').textContent = user.display_name?.charAt(0).toUpperCase() || '?';
+      document.getElementById('profile-name').textContent  = user.display_name || '—';
+      document.getElementById('profile-email').textContent = user.email || '—';
+      document.getElementById('profile-role').textContent  = roleLabels[user.role] || user.role;
+      document.getElementById('edit-name').value  = user.display_name || '';
+      document.getElementById('edit-phone').value = user.phone || '';
+
+      // Actualizar localStorage también
+      localStorage.setItem('cf_user', JSON.stringify(user));
+    } catch (err) {
+      Toast.error('Error cargando perfil');
+    }
+  }
+
+  document.getElementById('btn-save').addEventListener('click', async () => {
+    const name  = document.getElementById('edit-name').value.trim();
+    const phone = document.getElementById('edit-phone').value.trim();
+
+    if (!name) { Toast.warning('El nombre no puede estar vacío'); return; }
+
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+
+    try {
+      await api.put('/auth/profile', { display_name: name, phone });
+      Toast.success('Perfil actualizado correctamente');
+      loadProfile();
+    } catch (err) {
+      Toast.error(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg> Guardar cambios`;
+    }
+  });
+
+  loadProfile();
+</script>
+</body>
+</html>

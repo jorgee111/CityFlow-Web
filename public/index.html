@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityFlow — Acceso</title>
+  <meta name="description" content="CityFlow: Sistema inteligente de gestión de transporte público de Madrid. Inicia sesión para acceder al panel de control.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+<div class="auth-page">
+  <div class="auth-card animate-in">
+
+    <!-- Logo -->
+    <div class="auth-logo">
+      <div class="auth-logo-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="1" y="3" width="22" height="16" rx="2"/>
+          <path d="M1 9h22M7 3v16M17 3v16"/>
+          <circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/>
+        </svg>
+      </div>
+      <h1 class="auth-title">CityFlow</h1>
+      <p class="auth-subtitle">Saving Time · Improving Lives</p>
+    </div>
+
+    <!-- Formulario -->
+    <div class="auth-form" id="auth-form-card">
+      <h2 class="auth-form-title" id="form-title">Iniciar sesión</h2>
+
+      <!-- Campo nombre (solo registro) -->
+      <div class="form-group" id="field-name" style="display:none">
+        <label class="form-label" for="input-name">Nombre completo</label>
+        <input class="form-input" type="text" id="input-name" placeholder="Tu nombre">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-email">Email</label>
+        <input class="form-input" type="email" id="input-email" placeholder="tu@email.com" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-password">Contraseña</label>
+        <div class="password-wrapper">
+          <input class="form-input" type="password" id="input-password" placeholder="••••••••" required>
+          <button class="btn-eye" id="btn-eye" type="button">
+            <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary w-full" id="btn-submit" type="button">
+        Entrar
+      </button>
+
+      <p class="auth-toggle">
+        <span id="toggle-text">¿No tienes cuenta?</span>
+        <button id="btn-toggle">Regístrate</button>
+      </p>
+    </div>
+
+    <!-- Usuarios de demo -->
+    <div class="card mt-4" style="font-size:0.78rem; color:var(--muted-fg)">
+      <p class="font-semibold" style="color:var(--fg-2); margin-bottom:0.5rem">🔑 Cuentas de demo</p>
+      <div style="display:flex; flex-direction:column; gap:0.3rem">
+        <code style="background:var(--muted); padding:0.2rem 0.5rem; border-radius:0.375rem">admin@cityflow.es / Admin1234!</code>
+        <code style="background:var(--muted); padding:0.2rem 0.5rem; border-radius:0.375rem">carlos@cityflow.es / Conductor1!</code>
+        <code style="background:var(--muted); padding:0.2rem 0.5rem; border-radius:0.375rem">ana@ejemplo.es / Pasajero1!</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+<script>
+  // Si ya hay sesión activa, redirigir al dashboard
+  if (getToken()) {
+    const user = getUser();
+    redirectByRole(user?.role);
+  }
+
+  let isLogin = true;
+
+  const btnToggle  = document.getElementById('btn-toggle');
+  const btnSubmit  = document.getElementById('btn-submit');
+  const formTitle  = document.getElementById('form-title');
+  const toggleText = document.getElementById('toggle-text');
+  const fieldName  = document.getElementById('field-name');
+  const btnEye     = document.getElementById('btn-eye');
+  const passInput  = document.getElementById('input-password');
+
+  btnToggle.addEventListener('click', () => {
+    isLogin = !isLogin;
+    formTitle.textContent  = isLogin ? 'Iniciar sesión' : 'Crear cuenta';
+    btnSubmit.textContent  = isLogin ? 'Entrar' : 'Registrarse';
+    toggleText.textContent = isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?';
+    btnToggle.textContent  = isLogin ? 'Regístrate' : 'Inicia sesión';
+    fieldName.style.display = isLogin ? 'none' : 'flex';
+  });
+
+  btnEye.addEventListener('click', () => {
+    passInput.type = passInput.type === 'password' ? 'text' : 'password';
+  });
+
+  // Enviar con Enter
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnSubmit.click(); });
+
+  btnSubmit.addEventListener('click', async () => {
+    const email    = document.getElementById('input-email').value.trim();
+    const password = document.getElementById('input-password').value;
+    const name     = document.getElementById('input-name').value.trim();
+
+    if (!email || !password) { Toast.warning('Rellena todos los campos requeridos'); return; }
+    if (!isLogin && !name)   { Toast.warning('El nombre es obligatorio'); return; }
+
+    btnSubmit.disabled = true;
+    btnSubmit.textContent = 'Cargando...';
+
+    try {
+      let data;
+      if (isLogin) {
+        data = await api.post('/auth/login', { email, password });
+      } else {
+        data = await api.post('/auth/register', { email, password, display_name: name });
+      }
+
+      localStorage.setItem('cf_token', data.token);
+      localStorage.setItem('cf_user',  JSON.stringify(data.user));
+
+      Toast.success(`¡Bienvenido, ${data.user.display_name}!`);
+      setTimeout(() => redirectByRole(data.user.role), 800);
+    } catch (err) {
+      Toast.error(err.message || 'Error de autenticación');
+      btnSubmit.disabled = false;
+      btnSubmit.textContent = isLogin ? 'Entrar' : 'Registrarse';
+    }
+  });
+</script>
+</body>
+</html>

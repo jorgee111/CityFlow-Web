@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityFlow — Buscar</title>
+  <meta name="description" content="Busca paradas y rutas de autobuses en Madrid. Encuentra conexiones y tiempos de espera.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<button class="btn-menu-toggle" id="menu-toggle">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <h1 class="page-title">Buscar parada</h1>
+      <p class="page-subtitle">Encuentra autobuses desde cualquier punto</p>
+    </div>
+    <div class="page-content">
+
+      <div class="card animate-in">
+        <div style="display:flex; flex-direction:column; gap:1rem">
+          <div class="form-group">
+            <label class="form-label">Desde</label>
+            <div class="search-wrapper">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              <input class="form-input" type="text" id="from-input" placeholder="Parada de origen..." style="padding-left:2.5rem">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Hasta</label>
+            <div class="search-wrapper">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <input class="form-input" type="text" id="to-input" placeholder="Parada de destino..." style="padding-left:2.5rem">
+            </div>
+          </div>
+          <button class="btn btn-primary" id="btn-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Buscar ruta
+          </button>
+        </div>
+      </div>
+
+      <!-- Paradas populares -->
+      <div style="margin-top:1.5rem">
+        <h2 class="section-title mb-3">📍 Paradas populares</h2>
+        <div class="space-y-3" id="stops-list"></div>
+      </div>
+
+      <!-- Resultado búsqueda -->
+      <div id="search-result" style="display:none; margin-top:1.5rem"></div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+  requireAuth();
+
+  const STOPS = [
+    { name: 'Atocha',           buses: ['27','82','65'], zone: 'Centro' },
+    { name: 'Solicitada',       buses: ['44','132'],     zone: 'Centro' },
+    { name: 'Plaza Castilla',   buses: ['27','1'],       zone: 'Norte' },
+    { name: 'Moncloa',          buses: ['65','N1'],      zone: 'Noroeste' },
+    { name: 'Nuevos Ministerios',buses: ['27','132'],    zone: 'Norte' },
+    { name: 'Chamartín',        buses: ['44','1'],       zone: 'Norte' },
+    { name: 'Retiro',           buses: ['27','82','74'], zone: 'Centro' },
+    { name: 'Pirámides',        buses: ['82'],           zone: 'Sur' },
+  ];
+
+  document.getElementById('stops-list').innerHTML = STOPS.map((s, i) => `
+    <div class="line-card animate-in" style="animation-delay:${i * 0.05}s; cursor:pointer"
+         onclick="selectStop('${s.name}')">
+      <div style="width:40px;height:40px;border-radius:var(--radius);background:var(--secondary);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+      </div>
+      <div class="line-info">
+        <div class="line-dest">${s.name}</div>
+        <div class="line-route" style="display:flex; gap:0.375rem; flex-wrap:wrap; margin-top:0.25rem">
+          ${s.buses.map(b => `<span class="badge badge-primary" style="font-size:0.65rem">${b}</span>`).join('')}
+        </div>
+      </div>
+      <span class="badge badge-muted">${s.zone}</span>
+    </div>
+  `).join('');
+
+  function selectStop(name) {
+    document.getElementById('from-input').value = name;
+  }
+
+  document.getElementById('btn-search').addEventListener('click', () => {
+    const from = document.getElementById('from-input').value.trim();
+    const to   = document.getElementById('to-input').value.trim();
+    if (!from) { Toast.warning('Indica la parada de origen'); return; }
+
+    const result = document.getElementById('search-result');
+    result.style.display = 'block';
+    result.innerHTML = `
+      <div class="card animate-in">
+        <h3 style="font-family:'Space Grotesk',sans-serif; font-size:0.95rem; font-weight:700; margin-bottom:1rem; color:var(--fg)">
+          🔍 Resultados para "${from}"${to ? ` → "${to}"` : ''}
+        </h3>
+        <div class="space-y-3">
+          <div class="line-card">
+            <div class="line-badge" style="background:#e8a838">27</div>
+            <div class="line-info">
+              <div class="line-dest">Plaza Castilla</div>
+              <div class="line-route">Sale en 3 minutos · Ocupación baja</div>
+            </div>
+            <div><div class="line-eta">3'</div><div class="line-eta-label">min</div></div>
+          </div>
+          <div class="line-card">
+            <div class="line-badge" style="background:#e05252">82</div>
+            <div class="line-info">
+              <div class="line-dest">Atocha</div>
+              <div class="line-route">Sale en 6 minutos · Ocupación alta</div>
+            </div>
+            <div><div class="line-eta">6'</div><div class="line-eta-label">min</div></div>
+          </div>
+        </div>
+      </div>`;
+    Toast.success('Rutas encontradas');
+  });
+</script>
+</body>
+</html>

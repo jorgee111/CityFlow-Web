@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityFlow — Líneas</title>
+  <meta name="description" content="Estado en tiempo real de todas las líneas de autobuses de Madrid. Consulta ETA, ocupación y destinos.">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<button class="btn-menu-toggle" id="menu-toggle">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <h1 class="page-title">Líneas</h1>
+      <p class="page-subtitle">Estado en tiempo real de los autobuses</p>
+    </div>
+    <div class="page-content">
+      <div class="search-wrapper" style="margin-bottom:1.25rem">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input class="form-input" type="text" id="search-input" placeholder="Buscar línea o destino...">
+      </div>
+
+      <div class="space-y-3" id="lines-list">
+        <div class="loading-overlay"><div class="spinner"></div><span>Cargando líneas...</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+  requireAuth();
+  let allBuses = [];
+
+  function getOccLabel(level) { return { low: 'Bajo', medium: 'Medio', high: 'Alto' }[level] || 'Bajo'; }
+
+  function renderList(buses) {
+    const container = document.getElementById('lines-list');
+    if (!buses.length) {
+      container.innerHTML = `<p style="text-align:center; color:var(--muted-fg); padding:3rem">No se encontraron resultados</p>`;
+      return;
+    }
+    container.innerHTML = buses.map((bus, i) => `
+      <div class="line-card animate-in" style="animation-delay:${i * 0.05}s">
+        <div class="line-badge" style="background:${bus.line_color || '#3b9ed4'}">${bus.line}</div>
+        <div class="line-info">
+          <div class="line-dest">${bus.destination}</div>
+          <div class="line-route" style="margin-top:0.25rem">
+            <div class="progress-bar" style="height:4px; width:120px">
+              <div class="progress-fill occ-${bus.occupancy_level}" style="width:${bus.occupancy_pct}%"></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <span class="badge badge-${bus.occupancy_level === 'low' ? 'success' : bus.occupancy_level === 'medium' ? 'warning' : 'danger'}" style="margin-bottom:0.375rem;display:block">
+            ${getOccLabel(bus.occupancy_level)} · ${Math.round(bus.occupancy_pct)}%
+          </span>
+          <div class="line-eta">${bus.eta_minutes}'</div>
+          <div class="line-eta-label">min</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function loadLines() {
+    try {
+      allBuses = await api.get('/buses');
+      renderList(allBuses);
+    } catch (err) {
+      document.getElementById('lines-list').innerHTML = `<p style="text-align:center;color:var(--muted-fg);padding:3rem">Error cargando datos</p>`;
+      Toast.error(err.message);
+    }
+  }
+
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    const filtered = allBuses.filter(b =>
+      b.line.toLowerCase().includes(q) || b.destination.toLowerCase().includes(q)
+    );
+    renderList(filtered);
+  });
+
+  loadLines();
+</script>
+</body>
+</html>

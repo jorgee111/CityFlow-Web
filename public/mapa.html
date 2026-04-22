@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CityFlow — Mapa en vivo</title>
+  <meta name="description" content="Mapa en tiempo real de autobuses de Madrid con nivel de ocupación y velocidad.">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+</head>
+<body>
+<button class="btn-menu-toggle" id="menu-toggle">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main-content">
+    <div class="page-header">
+      <div style="display:flex; align-items:center; justify-content:space-between">
+        <div>
+          <h1 class="page-title">Mapa en vivo</h1>
+          <p class="page-subtitle">Posición en tiempo real de los autobuses</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.75rem">
+          <!-- Stats mini -->
+          <div class="card" style="padding:0.625rem 1rem; display:flex; gap:1.25rem">
+            <div style="text-align:center">
+              <div style="font-family:'Space Grotesk',sans-serif; font-size:1.1rem; font-weight:700; color:var(--primary)" id="map-count">—</div>
+              <div style="font-size:0.68rem; color:var(--muted-fg)">Activos</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-family:'Space Grotesk',sans-serif; font-size:1.1rem; font-weight:700; color:var(--info)" id="map-avgOcc">—%</div>
+              <div style="font-size:0.68rem; color:var(--muted-fg)">Aforo medio</div>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Actualizar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-content">
+      <div id="map"></div>
+
+      <!-- Leyenda -->
+      <div class="card" style="margin-top:1rem; display:flex; align-items:center; gap:1.5rem; flex-wrap:wrap">
+        <span style="font-size:0.8rem; font-weight:600; color:var(--fg-2)">Ocupación:</span>
+        <div style="display:flex; align-items:center; gap:0.5rem">
+          <div style="width:12px;height:12px;border-radius:50%;background:var(--success)"></div>
+          <span style="font-size:0.8rem; color:var(--muted-fg)">Baja (&lt;60%)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem">
+          <div style="width:12px;height:12px;border-radius:50%;background:var(--warning)"></div>
+          <span style="font-size:0.8rem; color:var(--muted-fg)">Media (60–85%)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem">
+          <div style="width:12px;height:12px;border-radius:50%;background:var(--danger)"></div>
+          <span style="font-size:0.8rem; color:var(--muted-fg)">Alta (&gt;85%)</span>
+        </div>
+        <span style="margin-left:auto; font-size:0.75rem; color:var(--muted-fg)" id="map-update-time"></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/nav.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/js/map.js"></script>
+</body>
+</html>
