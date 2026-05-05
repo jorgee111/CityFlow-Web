@@ -82,21 +82,6 @@ async function demoRequest(method, endpoint, body) {
     return { message: 'Perfil actualizado' };
   }
 
-  // ── Buses ──────────────────────────────────────
-  if (endpoint === '/buses' && method === 'GET') {
-    // Simula movimiento ligero de los buses
-    return DEMO_BUSES.map(b => ({ ...b, lat: b.lat + (Math.random()-0.5)*0.002, lng: b.lng + (Math.random()-0.5)*0.002 }));
-  }
-
-  if (endpoint === '/buses/stats' && method === 'GET') {
-    const avg = Math.round(DEMO_BUSES.reduce((s,b) => s + b.occupancy_pct, 0) / DEMO_BUSES.length);
-    return { active_buses: DEMO_BUSES.length, avg_occupancy: avg, high_occupancy_count: DEMO_BUSES.filter(b => b.occupancy_level === 'high').length };
-  }
-
-  if (endpoint === '/buses/lines' && method === 'GET') {
-    return DEMO_BUSES.map(b => ({ ...b, eta: b.eta_minutes }));
-  }
-
   // ── Incidents ──────────────────────────────────
   if (endpoint === '/incidents' && method === 'GET') {
     return DEMO_INCIDENTS;
@@ -146,6 +131,13 @@ async function demoRequest(method, endpoint, body) {
   throw new Error(`Demo: endpoint ${method} ${endpoint} no implementado`);
 }
 
+// ─── Endpoints que SIEMPRE usan la API real (EMT en tiempo real) ───
+const REAL_API_ENDPOINTS = ['/buses', '/buses/', '/buses/stats', '/buses/lines', '/ai', '/ai/route'];
+
+function shouldUseRealAPI(endpoint) {
+  return REAL_API_ENDPOINTS.some(e => endpoint === e || endpoint.startsWith('/buses') || endpoint.startsWith('/ai'));
+}
+
 // ─── API real (con servidor) ───────────────────
 const API_BASE = '/api';
 
@@ -154,21 +146,12 @@ const getUser  = () => { try { return JSON.parse(localStorage.getItem('cf_user')
 
 const api = {
   async request(method, endpoint, body = null) {
-    const token = getToken();
     const headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const opts = { method, headers };
     if (body) opts.body = JSON.stringify(body);
 
     const res = await fetch(`${API_BASE}${endpoint}`, opts);
-
-    if (res.status === 401) {
-      localStorage.removeItem('cf_token');
-      localStorage.removeItem('cf_user');
-      window.location.href = '/index.html';
-      return;
-    }
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
@@ -176,21 +159,26 @@ const api = {
   },
 
   async get(endpoint) {
+    // Bus endpoints ALWAYS use the real API (EMT data)
+    if (shouldUseRealAPI(endpoint)) return this.request('GET', endpoint);
     if (window.DEMO_MODE && !endpoint.startsWith('/gestures/')) return demoRequest('GET', endpoint);
     return this.request('GET', endpoint);
   },
 
   async post(endpoint, body) {
+    if (shouldUseRealAPI(endpoint)) return this.request('POST', endpoint, body);
     if (window.DEMO_MODE && !endpoint.startsWith('/gestures/')) return demoRequest('POST', endpoint, body);
     return this.request('POST', endpoint, body);
   },
 
   async put(endpoint, body) {
+    if (shouldUseRealAPI(endpoint)) return this.request('PUT', endpoint, body);
     if (window.DEMO_MODE && !endpoint.startsWith('/gestures/')) return demoRequest('PUT', endpoint, body);
     return this.request('PUT', endpoint, body);
   },
 
   async delete(endpoint) {
+    if (shouldUseRealAPI(endpoint)) return this.request('DELETE', endpoint);
     if (window.DEMO_MODE && !endpoint.startsWith('/gestures/')) return demoRequest('DELETE', endpoint);
     return this.request('DELETE', endpoint);
   },

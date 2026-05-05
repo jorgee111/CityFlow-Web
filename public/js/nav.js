@@ -8,7 +8,7 @@ const NAV_ITEMS = {
     { href: '/mapa.html',      icon: 'map',      label: 'Mapa en vivo' },
     { href: '/alertas.html',   icon: 'bell',     label: 'Alertas' },
     { href: '/trafico.html',   icon: 'trending', label: 'Tráfico' },
-    { href: '/buscar.html',    icon: 'search',   label: 'Buscar' },
+    { href: '/rutas-ia.html',  icon: 'ai',       label: 'Agente IA ✨' },
   ],
   conductor: [
     { href: '/conductor.html', icon: 'bus',      label: 'Panel Conductor' },
@@ -35,6 +35,7 @@ const ICONS = {
   user:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
   logout:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
   menu:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`,
+  ai:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 16a6 6 0 1 1 0-12 6 6 0 0 1 0 12zm0-10a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg>`,
 };
 
 function renderNav() {

@@ -12,7 +12,8 @@ const incidentsRoutes  = require('./routes/incidents');
 const suggestionsRoutes = require('./routes/suggestions');
 const usersRoutes      = require('./routes/users');
 const gesturesRoutes   = require('./routes/gestures');
-
+const aiRoutes         = require('./routes/ai');
+const emtService       = require('./services/emtService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +33,7 @@ app.use('/api/incidents',   incidentsRoutes);
 app.use('/api/suggestions', suggestionsRoutes);
 app.use('/api/users',       usersRoutes);
 app.use('/api/gestures',    gesturesRoutes);
+app.use('/api/ai',          aiRoutes);
 
 
 // ─── Health check para Azure App Service ─────────────────
@@ -63,11 +65,14 @@ app.get('*', (req, res) => {
   }
 });
 
-// ─── Iniciar servidor ─────────────────────────────────────
+// ─── Iniciar servidor y Workers ──────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🚌 CityFlow Web corriendo en http://localhost:${PORT}`);
   console.log(`📡 API disponible en http://localhost:${PORT}/api`);
   console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}\n`);
+  
+  // Iniciar worker de EMT para sincronizar todos los buses en segundo plano
+  emtService.startBackgroundWorker();
 });
 
 module.exports = app;

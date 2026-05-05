@@ -146,12 +146,35 @@
         api.get('/buses/stats')
       ]);
 
-      // KPIs
+      // KPIs — all computed from real data
       document.getElementById('stat-buses').textContent = stats.active_buses || buses.length;
 
-      // Lista próximos (primeros 5)
+      // Compute average ETA from buses
+      const avgEta = buses.length > 0 
+        ? Math.round(buses.reduce((s, b) => s + (b.eta_minutes || 0), 0) / buses.length) 
+        : 0;
+      // Find the stat-card with "ETA promedio" and update it
+      const etaCard = document.querySelectorAll('.stat-value')[2];
+      if (etaCard) etaCard.textContent = avgEta + ' min';
+
+      // Compute unique lines count for "Pasajeros/hora" card — repurpose to show lines
+      const uniqueLines = [...new Set(buses.map(b => b.line))].length;
+      const passCard = document.querySelectorAll('.stat-value')[1];
+      if (passCard) passCard.textContent = uniqueLines;
+      const passLabel = document.querySelectorAll('.stat-label')[1];
+      if (passLabel) passLabel.textContent = 'Líneas activas';
+
+      // Traffic level based on high occupancy percentage
+      const highPct = buses.length > 0 
+        ? Math.round((stats.high_occupancy_count / buses.length) * 100)
+        : 0;
+      const trafficLevel = highPct > 40 ? 'Alto' : highPct > 20 ? 'Moderado' : 'Fluido';
+      document.getElementById('stat-traffic').textContent = trafficLevel;
+
+      // Lista próximos (primeros 5 sorted by ETA)
+      const sorted = [...buses].sort((a, b) => a.eta_minutes - b.eta_minutes);
       const list = document.getElementById('buses-list');
-      const first5 = buses.slice(0, 5);
+      const first5 = sorted.slice(0, 5);
       list.innerHTML = first5.map((bus, i) => `
         <div class="line-card animate-in" style="animation-delay:${i * 0.07}s">
           <div class="line-badge" style="background:${bus.line_color || 'var(--primary)'}">
@@ -162,7 +185,7 @@
             <div class="line-route" style="display:flex;align-items:center;gap:0.5rem;margin-top:0.25rem">
               <span>${bus.eta_minutes} min</span>
               <span class="badge badge-${bus.occupancy_level === 'low' ? 'success' : bus.occupancy_level === 'medium' ? 'warning' : 'danger'}" style="font-size:0.65rem">
-                ${getOccupancyLabel(bus.occupancy_level)}
+                ${getOccupancyLabel(bus.occupancy_level)} · ${bus.occupancy_pct}%
               </span>
             </div>
           </div>
@@ -173,17 +196,29 @@
         </div>
       `).join('');
 
-      // Gráfico ocupación
+      // Gráfico ocupación — group by line, show top 10 lines by occupancy
+      const lineMap = {};
+      buses.forEach(b => {
+        if (!lineMap[b.line]) { lineMap[b.line] = { sum: 0, count: 0, level: b.occupancy_level }; }
+        lineMap[b.line].sum += b.occupancy_pct;
+        lineMap[b.line].count++;
+      });
+      const lineOcc = Object.entries(lineMap).map(([line, d]) => ({
+        line,
+        pct: Math.round(d.sum / d.count),
+        level: d.sum / d.count < 50 ? 'low' : d.sum / d.count < 80 ? 'medium' : 'high'
+      })).sort((a, b) => b.pct - a.pct).slice(0, 12);
+
       const chart = document.getElementById('occupancy-chart').querySelector('div');
-      chart.innerHTML = buses.map(bus => `
+      chart.innerHTML = lineOcc.map(item => `
         <div style="display:flex; align-items:center; gap:0.75rem">
-          <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:0.85rem; color:var(--fg); width:40px; flex-shrink:0">${bus.line}</span>
+          <span style="font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:0.85rem; color:var(--fg); width:40px; flex-shrink:0">${item.line}</span>
           <div style="flex:1">
             <div class="progress-bar">
-              <div class="progress-fill occ-${getOccupancyClass(bus.occupancy_level)}" style="width:${bus.occupancy_pct}%"></div>
+              <div class="progress-fill occ-${item.level}" style="width:${item.pct}%"></div>
             </div>
           </div>
-          <span style="font-size:0.78rem; color:var(--muted-fg); width:36px; text-align:right">${bus.occupancy_pct}%</span>
+          <span style="font-size:0.78rem; color:var(--muted-fg); width:36px; text-align:right">${item.pct}%</span>
         </div>
       `).join('');
 

@@ -6,6 +6,92 @@
   <title>CityFlow — Líneas</title>
   <meta name="description" content="Estado en tiempo real de todas las líneas de autobuses de Madrid. Consulta ETA, ocupación y destinos.">
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    .line-card.inactive {
+      opacity: 0.6;
+      filter: grayscale(0.5);
+    }
+    
+    /* Map Modal Styles */
+    .map-modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .map-modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .map-modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 800px;
+      height: 80vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.95);
+      transition: transform 0.2s;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .map-modal-overlay.active .map-modal {
+      transform: scale(1);
+    }
+    .map-modal-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-card);
+    }
+    .map-modal-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .map-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--muted-fg);
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 6px;
+      display: flex;
+      transition: all 0.2s;
+    }
+    .map-modal-close:hover {
+      background: var(--bg-hover);
+      color: var(--fg);
+    }
+    .map-container {
+      flex: 1;
+      width: 100%;
+      background: #0f172a;
+    }
+    
+    .custom-stop-dot {
+      background: var(--bg-card);
+      border: 2px solid var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+  </style>
 </head>
 <body>
 <button class="btn-menu-toggle" id="menu-toggle">
@@ -20,7 +106,7 @@
   <main class="main-content">
     <div class="page-header">
       <h1 class="page-title">Líneas</h1>
-      <p class="page-subtitle">Estado en tiempo real de los autobuses</p>
+      <p class="page-subtitle">Explora todas las líneas y su estado</p>
     </div>
     <div class="page-content">
       <div class="search-wrapper" style="margin-bottom:1.25rem">
@@ -37,47 +123,101 @@
   </main>
 </div>
 
+<!-- Map Modal -->
+<div class="map-modal-overlay" id="map-modal-overlay">
+  <div class="map-modal">
+    <div class="map-modal-header">
+      <div class="map-modal-title" id="map-modal-title">
+        <div class="line-badge" id="modal-line-badge" style="margin:0"></div>
+        <span id="modal-line-dest">Ruta de la línea</span>
+      </div>
+      <button class="map-modal-close" id="map-modal-close" aria-label="Cerrar mapa">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="map-container" id="line-map"></div>
+  </div>
+</div>
+
 <script src="/js/api.js"></script>
 <script src="/js/toast.js"></script>
 <script src="/js/nav.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   requireAuth();
-  let allBuses = [];
+  let allLines = [];
+  let mapInstance = null;
+  let mapLayer = null;
 
   function getOccLabel(level) { return { low: 'Bajo', medium: 'Medio', high: 'Alto' }[level] || 'Bajo'; }
 
-  function renderList(buses) {
+  function renderList(lines) {
     const container = document.getElementById('lines-list');
-    if (!buses.length) {
+    if (!lines.length) {
       container.innerHTML = `<p style="text-align:center; color:var(--muted-fg); padding:3rem">No se encontraron resultados</p>`;
       return;
     }
-    container.innerHTML = buses.map((bus, i) => `
-      <div class="line-card animate-in" style="animation-delay:${i * 0.05}s">
-        <div class="line-badge" style="background:${bus.line_color || '#3b9ed4'}">${bus.line}</div>
-        <div class="line-info">
-          <div class="line-dest">${bus.destination}</div>
-          <div class="line-route" style="margin-top:0.25rem">
-            <div class="progress-bar" style="height:4px; width:120px">
-              <div class="progress-fill occ-${bus.occupancy_level}" style="width:${bus.occupancy_pct}%"></div>
+    container.innerHTML = lines.map((line, i) => {
+      const isInactive = !line.is_active;
+      
+      let statsHtml = '';
+      if (isInactive) {
+        statsHtml = `
+          <div style="text-align:right">
+            <span class="badge" style="background:var(--bg-hover);color:var(--muted-fg);margin-bottom:0.375rem;display:block">
+              Sin datos en tiempo real
+            </span>
+            <div class="line-eta-label" style="margin-top:0.5rem">Haz clic para ver ruta</div>
+          </div>
+        `;
+      } else {
+        statsHtml = `
+          <div>
+            <span class="badge badge-${line.occupancy_level === 'low' ? 'success' : line.occupancy_level === 'medium' ? 'warning' : 'danger'}" style="margin-bottom:0.375rem;display:block">
+              ${getOccLabel(line.occupancy_level)} · ${Math.round(line.occupancy_pct)}%
+            </span>
+            <div class="line-eta">${line.eta}'</div>
+            <div class="line-eta-label">min</div>
+          </div>
+        `;
+      }
+      
+      return `
+        <div class="line-card animate-in ${isInactive ? 'inactive' : ''}" style="animation-delay:${Math.min(i * 0.01, 1)}s; cursor:pointer" onclick="openMapForLine('${line.line}', '${line.destination.replace(/'/g, "\\'")}', '${line.line_color || '#3b9ed4'}')">
+          <div class="line-badge" style="background:${line.line_color || '#3b9ed4'}">${line.line}</div>
+          <div class="line-info">
+            <div class="line-dest">${line.destination}</div>
+            <div class="line-route" style="margin-top:0.25rem">
+              ${isInactive ? 
+                `<div style="font-size:0.75rem; color:var(--muted-fg)">Ruta inactiva o sin vehículos ahora</div>` : 
+                `<div class="progress-bar" style="height:4px; width:120px">
+                  <div class="progress-fill occ-${line.occupancy_level}" style="width:${Math.round(line.occupancy_pct)}%"></div>
+                </div>`
+              }
             </div>
           </div>
+          ${statsHtml}
         </div>
-        <div>
-          <span class="badge badge-${bus.occupancy_level === 'low' ? 'success' : bus.occupancy_level === 'medium' ? 'warning' : 'danger'}" style="margin-bottom:0.375rem;display:block">
-            ${getOccLabel(bus.occupancy_level)} · ${Math.round(bus.occupancy_pct)}%
-          </span>
-          <div class="line-eta">${bus.eta_minutes}'</div>
-          <div class="line-eta-label">min</div>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   async function loadLines() {
     try {
-      allBuses = await api.get('/buses');
-      renderList(allBuses);
+      allLines = await api.get('/buses/lines');
+      
+      const activeCount = allLines.filter(l => l.is_active).length;
+      document.querySelector('.page-subtitle').textContent = 
+        `${allLines.length} líneas en total (${activeCount} activas) — Actualizado ` + new Date().toLocaleTimeString('es-ES', { hour:'2-digit', minute:'2-digit' });
+      
+      const q = document.getElementById('search-input').value.toLowerCase();
+      if (q) {
+        renderList(allLines.filter(l => l.line.toLowerCase().includes(q) || l.destination.toLowerCase().includes(q)));
+      } else {
+        renderList(allLines);
+      }
     } catch (err) {
       document.getElementById('lines-list').innerHTML = `<p style="text-align:center;color:var(--muted-fg);padding:3rem">Error cargando datos</p>`;
       Toast.error(err.message);
@@ -86,13 +226,95 @@
 
   document.getElementById('search-input').addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase();
-    const filtered = allBuses.filter(b =>
-      b.line.toLowerCase().includes(q) || b.destination.toLowerCase().includes(q)
+    const filtered = allLines.filter(l =>
+      l.line.toLowerCase().includes(q) || l.destination.toLowerCase().includes(q)
     );
     renderList(filtered);
   });
 
+  // Modal map logic
+  const overlay = document.getElementById('map-modal-overlay');
+  const closeBtn = document.getElementById('map-modal-close');
+
+  closeBtn.addEventListener('click', () => {
+    overlay.classList.remove('active');
+  });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('active');
+  });
+
+  window.openMapForLine = async function(lineId, destination, color) {
+    // Show modal
+    document.getElementById('modal-line-badge').textContent = lineId;
+    document.getElementById('modal-line-badge').style.background = color;
+    document.getElementById('modal-line-dest').textContent = destination;
+    overlay.classList.add('active');
+
+    // Init map if not exist
+    if (!mapInstance) {
+      mapInstance = L.map('line-map').setView([40.4168, -3.7038], 12);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© CARTO · EMT Madrid',
+        maxZoom: 19,
+      }).addTo(mapInstance);
+      mapLayer = L.layerGroup().addTo(mapInstance);
+    }
+    
+    // Fix leaflet sizing issue when in hidden container
+    setTimeout(() => { mapInstance.invalidateSize(); }, 10);
+    
+    mapLayer.clearLayers();
+    
+    // Add loading indicator manually to map center
+    const loader = L.popup({closeButton: false, className: 'dark-popup'})
+      .setLatLng(mapInstance.getCenter())
+      .setContent('<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0 auto"></div><div style="margin-top:8px;color:#94a3b8;font-size:12px;font-family:\'Space Grotesk\',sans-serif">Cargando ruta...</div>')
+      .openOn(mapInstance);
+
+    try {
+      const stops = await api.get(`/buses/lines/${lineId}/stops`);
+      mapInstance.closePopup(loader);
+
+      if (!stops || stops.length === 0) {
+        Toast.error('No se encontraron paradas para esta línea.');
+        return;
+      }
+
+      const latlngs = [];
+      const stopIcon = L.divIcon({
+        className: 'custom-stop-dot',
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+      });
+
+      stops.forEach(stop => {
+        if (stop.lat && stop.lng) {
+          const pt = [stop.lat, stop.lng];
+          latlngs.push(pt);
+          
+          L.marker(pt, { icon: stopIcon })
+            .bindPopup(`
+              <div style="font-family:'Space Grotesk',sans-serif">
+                <div style="font-weight:700;font-size:13px;color:#f1f5f9">${stop.name}</div>
+                <div style="font-size:11px;color:#94a3b8;margin-top:2px">${stop.address}</div>
+              </div>
+            `, { className: 'dark-popup' })
+            .addTo(mapLayer);
+        }
+      });
+
+      if (latlngs.length > 0) {
+        L.polyline(latlngs, { color: color, weight: 4, opacity: 0.8 }).addTo(mapLayer);
+        mapInstance.fitBounds(L.latLngBounds(latlngs), { padding: [30, 30] });
+      }
+    } catch (err) {
+      mapInstance.closePopup(loader);
+      Toast.error('Error al cargar la ruta: ' + err.message);
+    }
+  };
+
   loadLines();
+  setInterval(loadLines, 30000); // Auto-refresh cada 30s
 </script>
 </body>
 </html>
